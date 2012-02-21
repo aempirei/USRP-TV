@@ -1,0 +1,19 @@
+USRP-TV - Using the USRP N200 as a composite video output NTSC signal generator.
+
+It turns out that the USRP N200 with the LFTX card configured to a centerr
+frequency of 0Hz (DC) is just a 30MHz 14-bit DAC with a stereo output sample
+rate of 25Ms/s. This is really awesome.
+
+Copyright(c) 2011 by Christopher Abad
+
+EMAIL: aempirei@gmail.com aempirei@256.bz
+AIM: ambientempire
+IRC: aempirei on irc.freenode.net
+
+http://www.facebook.com/aempirei
+https://github.com/aempirei
+
+http://www.twentygoto10.com/
+http://blog.twentygoto10.com/
+http://www.the-mathclub.net/
+http://www.256.bz/
