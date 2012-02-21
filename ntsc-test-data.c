@@ -12,7 +12,6 @@
 
 // USRP-TV - Using the USRP N200 as a composite video output NTSC signal generator.
 // 
-// It turns out that the USRP N200 with the LFTX card configured to a centerr
 // frequency of 0Hz (DC) is just a 30MHz 14-bit DAC with a stereo output sample
 // rate of 25Ms/s. This is really awesome.
 // 
@@ -204,8 +203,8 @@ float *frame(unsigned char *data) {
 
     p = samplealloc(scanline_us * frame_scanlines, &sz);
 
-    memcpy(p, odd_field(data), half_frame_sz * sizeof(float));
-    memcpy(p + half_frame_sz, even_field(data), half_frame_sz * sizeof(float));
+    memcpy(p                , odd_field (data          ), half_frame_sz * sizeof(float));
+    memcpy(p + half_frame_sz, even_field(data + hsize()), half_frame_sz * sizeof(float));
 
     return p;
 
@@ -227,8 +226,8 @@ float *vsync() {
     if (flag) {
         flag = 0;
         p = samplealloc(scanline_us * vsync_scanlines, &sz);
-        memcpy(p, pre_equalization(), 3 * scanlinesize() * sizeof(float));
-        memcpy(p + 3 * scanlinesize(), serration(), 3 * scanlinesize() * sizeof(float));
+        memcpy(p                     , pre_equalization() , 3 * scanlinesize() * sizeof(float));
+        memcpy(p + 3 * scanlinesize(), serration()        , 3 * scanlinesize() * sizeof(float));
         memcpy(p + 6 * scanlinesize(), post_equalization(), 3 * scanlinesize() * sizeof(float));
     }
 
@@ -274,7 +273,7 @@ float *visible_field(unsigned char *data) {
     p = samplealloc(scanline_us * field_scanlines, &sz);
 
     for (n = 0; n < field_scanlines; n++)
-        memcpy(p + n * scanlinesize(), scanline(data + n * 2 * scanlinesize()), sizeof(float) * scanlinesize());
+        memcpy(p + n * scanlinesize(), scanline(data + n * 2 * hsize()), sizeof(float) * scanlinesize());
 
     return p;
 
@@ -327,10 +326,10 @@ float *odd_field(unsigned char *data) {
 
     p = samplealloc(scanline_us * half_frame_scanlines, &sz);
 
-    memcpy(p, vsync(), sizeof(float) * vsync_sz);
-    memcpy(p + vsync_sz, visible_field(data), sizeof(float) * field_sz);
-    memcpy(p + vsync_sz + field_sz, junk(), sizeof(float) * junk_sz);
-    memcpy(p + vsync_sz + field_sz + junk_sz, vblank(), sizeof(float) * vblank_sz);
+    memcpy(p                                , vsync()            , sizeof(float) * vsync_sz);
+    memcpy(p + vsync_sz                     , visible_field(data), sizeof(float) * field_sz);
+    memcpy(p + vsync_sz + field_sz          , junk()             , sizeof(float) * junk_sz);
+    memcpy(p + vsync_sz + field_sz + junk_sz, vblank()           , sizeof(float) * vblank_sz);
 
     return p;
 }
@@ -358,10 +357,10 @@ float *even_field(unsigned char *data) {
 
     p = samplealloc(scanline_us * half_frame_scanlines, &sz);
 
-    memcpy(p, vsync(), sizeof(float) * vsync_sz);
-    memcpy(p + vsync_sz, junk(), sizeof(float) * junk_sz);
-    memcpy(p + vsync_sz + junk_sz, visible_field(data + hsize()), sizeof(float) * field_sz);
-    memcpy(p + vsync_sz + junk_sz + field_sz, vblank(), sizeof(float) * vblank_sz);
+    memcpy(p                                , vsync()                      , sizeof(float) * vsync_sz);
+    memcpy(p + vsync_sz                     , junk()                       , sizeof(float) * junk_sz);
+    memcpy(p + vsync_sz + junk_sz           , visible_field(data + hsize()), sizeof(float) * field_sz);
+    memcpy(p + vsync_sz + junk_sz + field_sz, vblank()                     , sizeof(float) * vblank_sz);
 
     return p;
 
@@ -378,16 +377,16 @@ float *equalization_pulse() {
     if (flag) {
 
         int n;
+		  int m;
 
         flag = 0;
 
         p = samplealloc(scanline_us * 0.5, &sz);
 
-        for (n = 0; n < tosamples(equalization_pulse_on); n++)
-            p[n] = Vblack;
+		  m = 0;
 
-        for (n = 0; n < tosamples(equalization_pulse_off); n++)
-            p[n + tosamples(equalization_pulse_on)] = Vzero;
+        for (n = 0; n < tosamples(equalization_pulse_on); n++, m++) p[m] = Vblack;
+        for (n = 0; n < tosamples(equalization_pulse_off); n++, m++) p[m] = Vzero;
     }
 
     return p;
@@ -403,16 +402,16 @@ float *serration_pulse() {
     if (flag) {
 
         int n;
+		  int m;
 
         flag = 0;
 
         p = samplealloc(scanline_us * 0.5, &sz);
 
-        for (n = 0; n < tosamples(serration_pulse_off); n++)
-            p[n] = Vzero;
+		  m = 0;
 
-        for (n = 0; n < tosamples(serration_pulse_on); n++)
-            p[n + tosamples(serration_pulse_off)] = Vblack;
+        for (n = 0; n < tosamples(serration_pulse_off); n++, m++) p[m] = Vzero;
+        for (n = 0; n < tosamples(serration_pulse_on); n++, m++) p[m] = Vblack;
     }
 
     return p;
@@ -431,6 +430,7 @@ float *pre_equalization() {
 
         flag = 0;
         p = samplealloc(scanline_us * 3, &sz);
+
         for (n = 0; n < 6; n++)
             memcpy(p + (n * scanlinesize() / 2), equalization_pulse(), sizeof(float) * scanlinesize() / 2);
     }
@@ -450,6 +450,7 @@ float *serration() {
 
         flag = 0;
         p = samplealloc(scanline_us * 3, &sz);
+
         for (n = 0; n < 6; n++)
             memcpy(p + (n * scanlinesize() / 2), serration_pulse(), sizeof(float) * scanlinesize() / 2);
     }
@@ -481,16 +482,11 @@ float *hsync() {
 
         m = 0;
 
-        for (n = 0; n < tosamples(hsync_front_porch_us); n++, m++)
-            p[m] = Vblack;
-        for (n = 0; n < tosamples(hsync_sync_tip_us); n++, m++)
-            p[m] = Vzero;
-        for (n = 0; n < tosamples(hsync_breezeway_us); n++, m++)
-            p[m] = Vblack;
-        for (n = 0; n < tosamples(hsync_color_burst_us); n++, m++)
-            p[m] = Vblack;
-        for (n = 0; n < tosamples(hsync_back_porch_us); n++, m++)
-            p[m] = Vblack;
+        for (n = 0; n < tosamples(hsync_front_porch_us); n++, m++) p[m] = Vblack;
+        for (n = 0; n < tosamples(hsync_sync_tip_us   ); n++, m++) p[m] = Vzero;
+        for (n = 0; n < tosamples(hsync_breezeway_us  ); n++, m++) p[m] = Vblack;
+        for (n = 0; n < tosamples(hsync_color_burst_us); n++, m++) p[m] = Vblack;
+        for (n = 0; n < tosamples(hsync_back_porch_us ); n++, m++) p[m] = Vblack;
     }
 
     return p;
