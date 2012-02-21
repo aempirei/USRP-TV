@@ -87,7 +87,7 @@ VSYNC consists of 9 scanlines in 3 sections
 
    serration is 3 scanlines for the following signal:
 
-		# 6 X ( [ 27us @ 0V ] [ 4.75us @ Vblk ] )
+		# 6 X ( [ 27us @ 0V ][ 4.75us @ Vblk ] )
 
 		1) [ 27us @ 0V ][ 4.75us @ Vblk ][ 27us @ 0V ][ 4.75us @ Vblk ] 
 		2) [ 27us @ 0V ][ 4.75us @ Vblk ][ 27us @ 0V ][ 4.75us @ Vblk ] 
