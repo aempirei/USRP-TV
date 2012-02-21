@@ -148,6 +148,7 @@ int main(int argc, char **argv) {
 			exit(EXIT_FAILURE);
 		}
 	}
+
 	exit(EXIT_SUCCESS);
 }
 
@@ -189,9 +190,22 @@ float btov(unsigned char b) {
 }
 
 
-float *frame(unsigned char *p) {
+float *frame(unsigned char *data) {
+
 	// 525 scanlines - 480i image
-	return NULL;
+
+	size_t half_frame_sz = tosamples(scanline_us * half_frame_scanlines);
+
+	size_t sz;
+	float *p;
+
+	p = samplealloc(scanline_us * frame_scanlines, &sz);
+
+	memcpy(p                , odd_field (data), half_frame_sz * sizeof(float));
+	memcpy(p + half_frame_sz, even_field(data), half_frame_sz * sizeof(float));
+
+	return p;
+
 }
 
 float *samplealloc(float us, size_t *sz) {
@@ -200,10 +214,13 @@ float *samplealloc(float us, size_t *sz) {
 }
 
 float *vsync() {
+
 	static int flag = 1;
 	static size_t sz;
 	static float *p;
+
 	// 9 scanlines
+
 	if(flag) {
 		flag = 0;
 		p = samplealloc(scanline_us * vsync_scanlines, &sz);
@@ -299,19 +316,19 @@ float *odd_field(unsigned char *data) {
 
 	if(flag) {
 		flag = 0;
-		vsync_sz  = sizeof(float) * tosamples(scanline_us * vsync_scanlines );
-		field_sz  = sizeof(float) * tosamples(scanline_us * field_scanlines );
-		junk_sz   = sizeof(float) * tosamples(scanline_us * junk_scanlines  );
-		vblank_sz = sizeof(float) * tosamples(scanline_us * vblank_scanlines);
+		vsync_sz  = tosamples(scanline_us * vsync_scanlines );
+		field_sz  = tosamples(scanline_us * field_scanlines );
+		junk_sz   = tosamples(scanline_us * junk_scanlines  );
+		vblank_sz = tosamples(scanline_us * vblank_scanlines);
 	}
 
 
 	p = samplealloc(scanline_us * half_frame_scanlines, &sz);
 
-	memcpy(p                                , vsync        ()    , vsync_sz );
-	memcpy(p + vsync_sz                     , visible_field(data), field_sz );
-	memcpy(p + vsync_sz + field_sz          , junk         ()    , junk_sz  );
-	memcpy(p + vsync_sz + field_sz + junk_sz, vblank       ()    , vblank_sz);
+	memcpy(p                                , vsync        ()    , sizeof(float) * vsync_sz );
+	memcpy(p + vsync_sz                     , visible_field(data), sizeof(float) * field_sz );
+	memcpy(p + vsync_sz + field_sz          , junk         ()    , sizeof(float) * junk_sz  );
+	memcpy(p + vsync_sz + field_sz + junk_sz, vblank       ()    , sizeof(float) * vblank_sz);
 
 	return p;
 }
@@ -331,19 +348,19 @@ float *even_field(unsigned char *data) {
 
 	if(flag) {
 		flag = 0;
-		vsync_sz  = sizeof(float) * tosamples(scanline_us * vsync_scanlines );
-		field_sz  = sizeof(float) * tosamples(scanline_us * field_scanlines );
-		junk_sz   = sizeof(float) * tosamples(scanline_us * junk_scanlines  );
-		vblank_sz = sizeof(float) * tosamples(scanline_us * vblank_scanlines);
+		vsync_sz  = tosamples(scanline_us * vsync_scanlines );
+		field_sz  = tosamples(scanline_us * field_scanlines );
+		junk_sz   = tosamples(scanline_us * junk_scanlines  );
+		vblank_sz = tosamples(scanline_us * vblank_scanlines);
 	}
 
 
 	p = samplealloc(scanline_us * half_frame_scanlines, &sz);
 
-	memcpy(p                                , vsync        ()    , vsync_sz );
-	memcpy(p + vsync_sz                     , junk         ()    , junk_sz  );
-	memcpy(p + vsync_sz + junk_sz           , visible_field(data), field_sz );
-	memcpy(p + vsync_sz + junk_sz + field_sz, vblank       ()    , vblank_sz);
+	memcpy(p                                , vsync        ()    , sizeof(float) * vsync_sz );
+	memcpy(p + vsync_sz                     , junk         ()    , sizeof(float) * junk_sz  );
+	memcpy(p + vsync_sz + junk_sz           , visible_field(data), sizeof(float) * field_sz );
+	memcpy(p + vsync_sz + junk_sz + field_sz, vblank       ()    , sizeof(float) * vblank_sz);
 
 	return p;
 
