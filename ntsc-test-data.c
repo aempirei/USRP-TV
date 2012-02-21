@@ -21,12 +21,14 @@
 // EMAIL: aempirei@gmail.com aempirei@256.bz
 // AIM: ambientempire
 
-const int frame_scanlines = 525;
-const float us_epsilon = 0.25;
-
-const int field_scanlines = 240;
+const size_t frame_scanlines = 525;
+const size_t field_scanlines = 240;
+const size_t vblank_scanlines = 13;
+const size_t vsync_scanlines = 9;
 
 const float scanline_us = 63.50;
+
+const float us_epsilon = 0.25;
 
 const float hsync_front_porch_us = 1.50;
 const float hsync_sync_tip_us    = 4.75;
@@ -201,7 +203,7 @@ float *vsync() {
 	// 9 scanlines
 	if(flag) {
 		flag = 0;
-		p = samplealloc(scanline_us * 9, &sz);
+		p = samplealloc(scanline_us * vsync_scanlines, &sz);
 		memcpy(p                     , pre_equalization (), 3 * scanlinesize() * sizeof(float));
 		memcpy(p + 3 * scanlinesize(), serration        (), 3 * scanlinesize() * sizeof(float));
 		memcpy(p + 6 * scanlinesize(), post_equalization(), 3 * scanlinesize() * sizeof(float));
@@ -237,15 +239,49 @@ size_t tosamples(float us) {
 	return (int)rint(us / us_epsilon);
 }
 
-/*
-float *visible_field(unsigned char *) {
-	// 240 scanlines
+float *visible_field(unsigned char *data) {
+
+	// 240 scanlines x scanline() ; 240 X [ 11us @ HSYNC ][ 52.5us @ f(t)V ]
+
+	size_t sz;
+	float *p;
+
+	int n;
+
+	p = samplealloc(scanline_us * field_scanlines, &sz);
+
+	for(n = 0; n < field_scanlines; n++)
+		memcpy(p + n * scanlinesize(), vblank_scanline(), sizeof(float) * scanlinesize());
+
+	return p;
+
 }
 
 float *vblank() {
+
 	// 13 X vblank_scanline() ; 13 X [ 11us @ HSYNC ][ 52.5us @ Vblack ]
+
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
+
+	if(flag) {
+
+		int n;
+
+		flag = 0;
+
+		p = samplealloc(scanline_us * vblank_scanlines, &sz);
+
+		for(n = 0; n < vblank_scanlines; n++)
+			memcpy(p + n * scanlinesize(), vblank_scanline(), sizeof(float) * scanlinesize());
+	}
+
+	return p;
+
 }
 
+/*
 float *odd_field(unsigned char *) {
 	// 262.5 scanlines - junk after field - 240 visible scanlines ; vsync ++ visible_field ++ junk ++ vblank
 }
@@ -380,21 +416,15 @@ float *hdata(unsigned char *data) {
 
 	// 52.5us @ f(t)V
 
-	static int flag = 1;
-	static size_t sz;
-	static float *p;
+	size_t sz;
+	float *p;
 
-	if(flag) {
+	int n;
 
-		int n;
+	p = samplealloc(hdata_us, &sz);
 
-		flag = 0;
-
-		p = samplealloc(hdata_us, &sz);
-
-		for(n = 0; n < sz; n++)
-			p[n] = btov(data[n]);
-	}
+	for(n = 0; n < sz; n++)
+		p[n] = btov(data[n]);
 
 	return p;
 }
@@ -403,17 +433,13 @@ float *scanline(unsigned char *data) {
 
 	// [ 11us @ HSYNC ][ 52.5us @ f(t)V ] ; HSYNC ++ HDATA
 
-	static int flag = 1;
-	static size_t sz;
-	static float *p;
+	size_t sz;
+	float *p;
 
-	if(flag) {
-		flag = 0;
-		p = samplealloc(scanline_us, &sz);
+	p = samplealloc(scanline_us, &sz);
 
-		memcpy(p, hsync(), sizeof(float) * tosamples(hsync_us));
-		memcpy(p + tosamples(hsync_us), hdata(data), sizeof(float) * tosamples(hdata_us));
-	}
+	memcpy(p, hsync(), sizeof(float) * tosamples(hsync_us));
+	memcpy(p + tosamples(hsync_us), hdata(data), sizeof(float) * tosamples(hdata_us));
 
 	return p;
 }
