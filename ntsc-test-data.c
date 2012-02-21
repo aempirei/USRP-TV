@@ -204,10 +204,8 @@ float *frame(unsigned char *data) {
 
 	p = samplealloc(scanline_us * frame_scanlines, &sz);
 
-/*
 	memcpy(p                , odd_field (data), half_frame_sz * sizeof(float));
 	memcpy(p + half_frame_sz, even_field(data), half_frame_sz * sizeof(float));
-	*/
 
 	return p;
 
@@ -331,7 +329,7 @@ float *odd_field(unsigned char *data) {
 	p = samplealloc(scanline_us * half_frame_scanlines, &sz);
 
 	memcpy(p                                , vsync        ()    , sizeof(float) * vsync_sz );
-	memcpy(p + vsync_sz                     , visible_field(data), sizeof(float) * field_sz );
+	//memcpy(p + vsync_sz                     , visible_field(data), sizeof(float) * field_sz );
 	memcpy(p + vsync_sz + field_sz          , junk         ()    , sizeof(float) * junk_sz  );
 	memcpy(p + vsync_sz + field_sz + junk_sz, vblank       ()    , sizeof(float) * vblank_sz);
 
@@ -364,7 +362,7 @@ float *even_field(unsigned char *data) {
 
 	memcpy(p                                , vsync        ()    , sizeof(float) * vsync_sz );
 	memcpy(p + vsync_sz                     , junk         ()    , sizeof(float) * junk_sz  );
-	memcpy(p + vsync_sz + junk_sz           , visible_field(data + hsize()), sizeof(float) * field_sz );
+	//memcpy(p + vsync_sz + junk_sz           , visible_field(data + hsize()), sizeof(float) * field_sz );
 	memcpy(p + vsync_sz + junk_sz + field_sz, vblank       ()    , sizeof(float) * vblank_sz);
 
 	return p;
@@ -487,7 +485,7 @@ float *hsync() {
 		for(n = 0; n < tosamples(hsync_sync_tip_us   ); n++, m++) p[m] = Vzero;
 		for(n = 0; n < tosamples(hsync_breezeway_us  ); n++, m++) p[m] = Vblack;
 		for(n = 0; n < tosamples(hsync_color_burst_us); n++, m++) p[m] = Vblack;
-		for(n = 0; n < tosamples(serration_pulse_off ); n++, m++) p[m] = Vblack;
+		for(n = 0; n < tosamples(hsync_back_porch_us ); n++, m++) p[m] = Vblack;
 	}
 
 	return p;
