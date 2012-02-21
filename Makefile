@@ -1,6 +1,6 @@
 CC = gcc
-CCFLAGS = -Wall -I. -lm
-CFLAGS = -Wall -I.
+CCFLAGS = -Wall -I. -lm -g -ggdb
+CFLAGS = -Wall -I. -g -ggdb
 TARGETS = ntsc-test-data
 
 .PHONY: all clean wipe

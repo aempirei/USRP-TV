@@ -147,6 +147,9 @@ int main(int argc, char **argv) {
 			perror("write2()");
 			exit(EXIT_FAILURE);
 		}
+	} else {
+		fprintf(stderr, "missing output frame\n");
+		exit(EXIT_FAILURE);
 	}
 
 	exit(EXIT_SUCCESS);
@@ -201,8 +204,10 @@ float *frame(unsigned char *data) {
 
 	p = samplealloc(scanline_us * frame_scanlines, &sz);
 
+/*
 	memcpy(p                , odd_field (data), half_frame_sz * sizeof(float));
 	memcpy(p + half_frame_sz, even_field(data), half_frame_sz * sizeof(float));
+	*/
 
 	return p;
 
@@ -271,7 +276,7 @@ float *visible_field(unsigned char *data) {
 	p = samplealloc(scanline_us * field_scanlines, &sz);
 
 	for(n = 0; n < field_scanlines; n++)
-		memcpy(p + n * scanlinesize(), scanline(data + n * scanlinesize()), sizeof(float) * scanlinesize());
+		memcpy(p + n * scanlinesize(), scanline(data + n * 2 * scanlinesize()), sizeof(float) * scanlinesize());
 
 	return p;
 
@@ -359,7 +364,7 @@ float *even_field(unsigned char *data) {
 
 	memcpy(p                                , vsync        ()    , sizeof(float) * vsync_sz );
 	memcpy(p + vsync_sz                     , junk         ()    , sizeof(float) * junk_sz  );
-	memcpy(p + vsync_sz + junk_sz           , visible_field(data), sizeof(float) * field_sz );
+	memcpy(p + vsync_sz + junk_sz           , visible_field(data + hsize()), sizeof(float) * field_sz );
 	memcpy(p + vsync_sz + junk_sz + field_sz, vblank       ()    , sizeof(float) * vblank_sz);
 
 	return p;
