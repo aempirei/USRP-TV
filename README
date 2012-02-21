@@ -31,23 +31,91 @@ if not obsolete. I will describe it here.
 
 NTSC is an interlaced video therefore only half of the screen by alternating
 lines is updated each scan. The screen is broken up into 525 even and odd
-scanlines producing odd and even frames. An additional oddity is that 525 is not
+scanlines producing odd and even fields. An additional oddity is that 525 is not
 evenly divisible by 2. Whoever designed this must have been retarded. What ends
 up being done is that the last scanline is handled specially.
 
-262.5 scanlines, representing one frame, are updated per rescan, and various
+262.5 scanlines, representing one field, are updated per rescan, and various
 schemes have been used to deal with this. The three most typical are as follows.
 
-The half-speed half-resolution mode is that the vertical resolution and frame
+The half-speed half-resolution mode is that the vertical resolution and field
 rate are both effectively cut in half and the same 262.5 scanline image is drawn
-twice and is used for both odd and even frames.
+twice and is used for both odd and even fields.
 
 The half-speed full-resolution mode is that a single 525 scanline image is
-broken up into two frames, with half of the image drawn on the odd frame and
-then the other half drawn on the even frame.
+broken up into two fields, with half of the image drawn on the odd field and
+then the other half drawn on the even field.
 
 The full-speed mode is that a 525 scanline image is generated and half of the
-scanlines of the image are selected. Depending on if the frame is odd or even,
+scanlines of the image are selected. Depending on if the field is odd or even,
 the corresponding odd or even scanlines of the image are selected.
 
-525 scanlines
+Now for the format of the actual frames:
+
+525 scanlines - complete frame
+
+   262.5 scanlines - odd field
+   262.5 scanlines - even field
+
+   odd field
+
+      9 scanlines - VSYNC
+      240 scanlines - Field Image
+      0.5 scanline - Junk (0.3V)
+      13 scanlines - VBLANK Back Porch
+
+   even field
+
+      9 scanlines - VSYNC
+      0.5 scanlines - Junk (0.3V)
+      240 scanlines - Field Image
+      13 scanlines - VBLANK Back Porch
+
+VSYNC consists of 9 scanlines in 3 sections
+
+   3 scanlines - pre-equalzation
+   3 scanlines - serration
+   3 scanlines - post-equalization
+
+   pre-equalization is 3 scanlines for the following signal:
+
+      # 6 X ( [ 29.25us @ Vblk ][ 2.5us @ 0V ] )
+
+      1) [ 29.25us @ Vblk ][ 2.5us @ 0V ][ 29.25us @ Vblk ][ 2.5us @ 0V ]
+      2) [ 29.25us @ Vblk ][ 2.5us @ 0V ][ 29.25us @ Vblk ][ 2.5us @ 0V ]
+      3) [ 29.25us @ Vblk ][ 2.5us @ 0V ][ 29.25us @ Vblk ][ 2.5us @ 0V ]
+
+   serration is 3 scanlines for the following signal:
+
+		# 6 X ( [ 27us @ 0V ] [ 4.75us @ Vblk ] )
+
+		1) [ 27us @ 0V ][ 4.75us @ Vblk ][ 27us @ 0V ][ 4.75us @ Vblk ] 
+		2) [ 27us @ 0V ][ 4.75us @ Vblk ][ 27us @ 0V ][ 4.75us @ Vblk ] 
+		3) [ 27us @ 0V ][ 4.75us @ Vblk ][ 27us @ 0V ][ 4.75us @ Vblk ] 
+
+   post-equalization is 3 scanlines for the following signal:
+
+      # 6 X ( [ 29.25us @ Vblk ][ 2.5us @ 0V ] )
+
+      1) [ 29.25us @ Vblk ][ 2.5us @ 0V ][ 29.25us @ Vblk ][ 2.5us @ 0V ]
+      2) [ 29.25us @ Vblk ][ 2.5us @ 0V ][ 29.25us @ Vblk ][ 2.5us @ 0V ]
+      3) [ 29.25us @ Vblk ][ 2.5us @ 0V ][ 29.25us @ Vblk ][ 2.5us @ 0V ]
+
+240 scanlines - field data
+
+	11us - HSYNC
+	
+		1.5us @ Vblk - HSYNC Front Porch
+		4.75us @ 0V - Sync Tip
+		0.5us @ Vblk - Breezeway
+		2.75us @ Vblk - Color Burst
+		1.5us @ Vblk - Back Porch
+
+	# [ 11us @ HSYNC ] := [ 1.5us @ Vblk ][ 4.75us @ 0V ][ 0.5us @ Vblk ][ 2.75us @ Vblk ][ 1.5us @ Vblk ]
+
+   # 240 X [ 11us @ HSYNC ][ 52.5us @ f(t)V ]
+
+13 scanlines - VBLANK Back Porch
+
+	# 13 X [ 11us @ HSYNC ][ 52.5us @ Vblk ]
+
