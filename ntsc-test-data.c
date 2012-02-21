@@ -34,7 +34,13 @@ const float hsync_breezeway_us   = 0.50;
 const float hsync_color_burst_us = 2.75;
 const float hsync_back_porch_us  = 1.50;
 
-const float Vblk = 0.30;
+const float equalization_pulse_on  = 29.25;
+const float equalization_pulse_off =  2.50;
+
+const float serration_pulse_off =  27.00;
+const float serration_pulse_on  =   4.75;
+
+const float Vblack = 0.30;
 const float Vwhite = 1.00;
 const float Vzero = 0.00;
 
@@ -44,34 +50,39 @@ float hdata_us;
 float *frame(unsigned char *); // 525 scanlines - 480i image
 
 float *vsync(); // 9 scanlines
-float *junk(); // 0.5 scanlines @ Vblk
+float *junk(); // 0.5 scanlines @ Vblack
 float *visible_field(unsigned char *); // 240 scanlines
-float *vblank(); // 13 X vblank_scanline() ; 13 X [ 11us @ HSYNC ][ 52.5us @ Vblk ]
+float *vblank(); // 13 X vblank_scanline() ; 13 X [ 11us @ HSYNC ][ 52.5us @ Vblack ]
 
 float *odd_field(unsigned char *);  // 262.5 scanlines - junk after field - 240 visible scanlines ; vsync ++ visible_field ++ junk ++ vblank
 float *even_field(unsigned char *); // 262.5 scanlines - junk before field - 240 visible scanlines ; vsync ++ junk ++ visible_field ++ vblank
 
-float *equalization_pulse(); // [ 29.25us @ Vblk ][ 2.5us @ 0V ]
-float *serration_pulse();    // [ 27us @ 0V ][ 4.75us @ Vblk ]
+float *equalization_pulse(); // [ 29.25us @ Vblack ][ 2.5us @ 0V ]
+float *serration_pulse();    // [ 27us @ 0V ][ 4.75us @ Vblack ]
 
 float *pre_equalization();  // 6 X equalization-pulse
 float *serration();         // 6 X serration-pulse
 float *post_equalization(); // 6 X equaliation-pulse
 
-float *hsync(); //  [ 11us @ HSYNC ] := [ 1.5us @ Vblk ][ 4.75us @ 0V ][ 0.5us @ Vblk ][ 2.75us @ Vblk ][ 1.5us @ Vblk ]
+float *hsync(); //  [ 11us @ HSYNC ] := [ 1.5us @ Vblack ][ 4.75us @ 0V ][ 0.5us @ Vblack ][ 2.75us @ Vblack ][ 1.5us @ Vblack ]
 float *hdata(unsigned char *); // 52.5us @ f(t)V
 
 float *scanline(unsigned char *); // [ 11us @ HSYNC ][ 52.5us @ f(t)V ] ; HSYNC ++ HDATA
 
-float *vblank_scanline(); // [ 11us @ HSYNC ][ 52.5us @ Vblk ]
+float *vblank_scanline(); // [ 11us @ HSYNC ][ 52.5us @ Vblack ]
 
-float btov(unsigned char); // byte to voltage [0,255] -> [Vblk,Vwhite]
+float btov(unsigned char); // byte to voltage [0,255] -> [Vblack,Vwhite]
 
 void init();
 void usage(const char *prog);
 
-unsigned int hsize();
-unsigned int vsize();
+size_t hsize();
+size_t vsize();
+size_t scanlinesize();
+
+float *samplealloc(float, size_t *);
+
+size_t tosamples(float);
 
 int main(int argc, char **argv) {
 
@@ -80,6 +91,8 @@ int main(int argc, char **argv) {
 	size_t data_sz;
 	size_t p_sz;
 	int w, h, n;
+
+	float *frame_data;
 
 	init();
 
@@ -120,15 +133,29 @@ int main(int argc, char **argv) {
 		exit(EXIT_FAILURE);
 	}
 
+	frame_data = frame(p);
+
+	if(frame_data != NULL) {
+		int sz = sizeof(float) * frame_scanlines * scanlinesize();
+		n = write2(1, frame_data, sz);
+		if(n != sz) {
+			perror("write2()");
+			exit(EXIT_FAILURE);
+		}
+	}
 	exit(EXIT_SUCCESS);
 }
 
-unsigned int hsize() {
-	return (int)rint(hdata_us / us_epsilon);
+size_t hsize() {
+	return tosamples(hdata_us);
 }
 
-unsigned int vsize() {
+size_t vsize() {
 	return field_scanlines * 2;
+}
+
+size_t scanlinesize() {
+	return tosamples(scanline_us);
 }
 
 void usage(const char *prog) {
@@ -151,29 +178,72 @@ float btov(unsigned char b) {
 	WHITE = x;
 	BLACK = (1.0 - x);
 
-	v = WHITE * Vwhite + BLACK * Vblk;
+	v = WHITE * Vwhite + BLACK * Vblack;
 
 	return v;
 }
 
-float *frame(unsigned char *) {
+
+float *frame(unsigned char *p) {
 	// 525 scanlines - 480i image
+	return NULL;
+}
+
+float *samplealloc(float us, size_t *sz) {
+	*sz = tosamples(us);
+	return (float *)malloc(sizeof(float) * *sz);
 }
 
 float *vsync() {
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
 	// 9 scanlines
+	if(flag) {
+		flag = 0;
+		p = samplealloc(scanline_us * 9, &sz);
+		memcpy(p                     , pre_equalization (), 3 * scanlinesize() * sizeof(float));
+		memcpy(p + 3 * scanlinesize(), serration        (), 3 * scanlinesize() * sizeof(float));
+		memcpy(p + 6 * scanlinesize(), post_equalization(), 3 * scanlinesize() * sizeof(float));
+	}
+
+	return p;
 }
 
 float *junk() {
-	// 0.5 scanlines @ Vblk
+
+	// 0.5 scanlines @ Vblack
+
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
+
+	if(flag) {
+
+		int n;
+
+		flag = 0;
+
+		p = samplealloc(scanline_us * 0.5, &sz);
+
+		for(n = 0; n < sz; n++)
+			p[n] = Vblack;
+	}
+	
+	return p;
 }
 
+size_t tosamples(float us) {
+	return (int)rint(us / us_epsilon);
+}
+
+/*
 float *visible_field(unsigned char *) {
 	// 240 scanlines
 }
 
 float *vblank() {
-	// 13 X vblank_scanline() ; 13 X [ 11us @ HSYNC ][ 52.5us @ Vblk ]
+	// 13 X vblank_scanline() ; 13 X [ 11us @ HSYNC ][ 52.5us @ Vblack ]
 }
 
 float *odd_field(unsigned char *) {
@@ -183,38 +253,189 @@ float *odd_field(unsigned char *) {
 float *even_field(unsigned char *) {
 	// 262.5 scanlines - junk before field - 240 visible scanlines ; vsync ++ junk ++ visible_field ++ vblank
 }
+*/
 
 float *equalization_pulse() {
-	// [ 29.25us @ Vblk ][ 2.5us @ 0V ]
+
+	// [ 29.25us @ Vblack ][ 2.5us @ 0V ]
+
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
+
+	if(flag) {
+
+		int n;
+
+		flag = 0;
+
+		p = samplealloc(scanline_us * 0.5, &sz);
+
+		for(n = 0; n < tosamples(equalization_pulse_on); n++)
+			p[n] = Vblack;
+
+		for(n = 0; n < tosamples(equalization_pulse_off); n++)
+			p[n + tosamples(equalization_pulse_on)] = Vzero;
+	}
+
+	return p;
 }
 
 float *serration_pulse() {
-	// [ 27us @ 0V ][ 4.75us @ Vblk ]
+	// [ 27us @ 0V ][ 4.75us @ Vblack ]
+
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
+
+	if(flag) {
+
+		int n;
+
+		flag = 0;
+
+		p = samplealloc(scanline_us * 0.5, &sz);
+
+		for(n = 0; n < tosamples(serration_pulse_off); n++)
+			p[n] = Vzero;
+
+		for(n = 0; n < tosamples(serration_pulse_on); n++)
+			p[n + tosamples(serration_pulse_off)] = Vblack;
+	}
+
+	return p;
+
 }
 
 float *pre_equalization() {
 	// 6 X equalization-pulse
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
+	// 3 scanlines
+	if(flag) {
+		int n;
+		flag = 0;
+		p = samplealloc(scanline_us * 3, &sz);
+		for(n = 0; n < 6; n++) 
+			memcpy(p + (n * scanlinesize() / 2), equalization_pulse(), sizeof(float) * scanlinesize() / 2);
+	}
+
+	return p;
 }
+
 float *serration() {
 	// 6 X serration-pulse
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
+	// 3 scanlines
+	if(flag) {
+		int n;
+		flag = 0;
+		p = samplealloc(scanline_us * 3, &sz);
+		for(n = 0; n < 6; n++) 
+			memcpy(p + (n * scanlinesize() / 2), serration_pulse(), sizeof(float) * scanlinesize() / 2);
+	}
+
+	return p;
+
 }
+
 float *post_equalization() {
 	// 6 X equaliation-pulse
+	return pre_equalization();
 }
 
 float *hsync() {
-	//  [ 11us @ HSYNC ] := [ 1.5us @ Vblk ][ 4.75us @ 0V ][ 0.5us @ Vblk ][ 2.75us @ Vblk ][ 1.5us @ Vblk ]
-}
-float *hdata(unsigned char *) {
-	// 52.5us @ f(t)V
+
+	//  [ 11us @ HSYNC ] := [ 1.5us @ Vblack ][ 4.75us @ 0V ][ 0.5us @ Vblack ][ 2.75us @ Vblack ][ 1.5us @ Vblack ]
+
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
+
+	if(flag) {
+
+		int n, m;
+
+		flag = 0;
+
+		p = samplealloc(hsync_us, &sz);
+
+		m = 0;
+
+		for(n = 0; n < tosamples(hsync_front_porch_us); n++, m++) p[m] = Vblack;
+		for(n = 0; n < tosamples(hsync_sync_tip_us   ); n++, m++) p[m] = Vzero;
+		for(n = 0; n < tosamples(hsync_breezeway_us  ); n++, m++) p[m] = Vblack;
+		for(n = 0; n < tosamples(hsync_color_burst_us); n++, m++) p[m] = Vblack;
+		for(n = 0; n < tosamples(serration_pulse_off ); n++, m++) p[m] = Vblack;
+	}
+
+	return p;
 }
 
-float *scanline(unsigned char *) {
+
+float *hdata(unsigned char *data) {
+
+	// 52.5us @ f(t)V
+
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
+
+	if(flag) {
+
+		int n;
+
+		flag = 0;
+
+		p = samplealloc(hdata_us, &sz);
+
+		for(n = 0; n < sz; n++)
+			p[n] = btov(data[n]);
+	}
+
+	return p;
+}
+
+float *scanline(unsigned char *data) {
+
 	// [ 11us @ HSYNC ][ 52.5us @ f(t)V ] ; HSYNC ++ HDATA
+
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
+
+	if(flag) {
+		flag = 0;
+		p = samplealloc(scanline_us, &sz);
+
+		memcpy(p, hsync(), sizeof(float) * tosamples(hsync_us));
+		memcpy(p + tosamples(hsync_us), hdata(data), sizeof(float) * tosamples(hdata_us));
+	}
+
+	return p;
 }
 
 float *vblank_scanline() {
-	// [ 11us @ HSYNC ][ 52.5us @ Vblk ]
+
+	// [ 11us @ HSYNC ][ 52.5us @ Vblack ] ; HSYNC ++ Vblack*
+
+	static int flag = 1;
+	static size_t sz;
+	static float *p;
+
+	if(flag) {
+		int n;
+		flag = 0;
+		p = samplealloc(scanline_us, &sz);
+
+		for(n = 0; n < sz; n++)
+			p[n] = Vblack;
+
+		memcpy(p, hsync(), sizeof(float) * tosamples(hsync_us));
+	}
+
+	return p;
 }
-
-
